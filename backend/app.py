@@ -16,107 +16,59 @@ load_dotenv()
 fastapi_app = FastAPI(
     title="GitHub Issue Solver",
     description="AI-powered GitHub issue solver using LangGraph and Gemini",
-    version="0.1.0"
+    version="0.1.0",
 )
 
 
-class SolveIssueRequest(BaseModel):
-    """Request model for solving an issue."""
+class AnalyzeRequest(BaseModel):
+    """Request model for analyzing an issue."""
     issue_url: str
-    dry_run: Optional[bool] = False
 
 
-class SolveIssueResponse(BaseModel):
-    """Response model for solving an issue."""
+class AnalyzeResponse(BaseModel):
+    """Response model for analyzing an issue."""
     success: bool
-    issue_number: Optional[int] = None
-    issue_title: Optional[str] = None
-    analysis: Optional[str] = None
-    solution: Optional[str] = None
-    code_changes: Optional[str] = None
-    final_response: Optional[str] = None
+    issue: Optional[dict] = None
+    files: Optional[list] = None
+    code: Optional[dict] = None
+    reasoning: Optional[str] = None
+    patch: Optional[str] = None
     error: Optional[str] = None
 
 
-@fastapi_app.get("/")
-async def root():
-    """Root endpoint."""
-    return {"message": "GitHub Issue Solver API", "status": "running"}
-
-
-@fastapi_app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy"}
-
-
-@fastapi_app.post("/solve", response_model=SolveIssueResponse)
-async def solve_issue(request: SolveIssueRequest):
-    """Solve a GitHub issue.
+@fastapi_app.post("/analyze", response_model=AnalyzeResponse)
+async def analyze(request: AnalyzeRequest):
+    """Analyze a GitHub issue.
     
     Args:
         request: Request containing the issue URL
         
     Returns:
-        Response with the solution and analysis
+        Response with the analysis and patch
     """
     # Initialize state
     initial_state = GraphState(
-        issue_url=request.issue_url
+        issue_url=request.issue_url,
+        issue={},
+        files=[],
+        code={},
+        reasoning="",
+        patch=""
     )
     
     try:
         # Run the graph
         result = app.invoke(initial_state)
         
-        # Convert result to response
-        response = SolveIssueResponse(
+        # Return JSON
+        return AnalyzeResponse(
             success=True,
-            issue_number=result.get("issue_number"),
-            issue_title=result.get("issue_title"),
-            analysis=result.get("issue_analysis"),
-            solution=result.get("proposed_solution"),
-            code_changes=result.get("code_changes"),
-            final_response=result.get("final_response"),
+            issue=result.get("issue"),
+            files=result.get("files"),
+            code=result.get("code"),
+            reasoning=result.get("reasoning"),
+            patch=result.get("patch"),
         )
-        
-        return response
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@fastapi_app.post("/analyze", response_model=SolveIssueResponse)
-async def analyze_issue(request: SolveIssueRequest):
-    """Analyze a GitHub issue without posting a response.
-    
-    Args:
-        request: Request containing the issue URL
-        
-    Returns:
-        Response with the analysis and solution
-    """
-    # Initialize state
-    initial_state = GraphState(
-        issue_url=request.issue_url
-    )
-    
-    try:
-        # Run the graph but stop before posting
-        result = app.invoke(initial_state)
-        
-        # Convert result to response
-        response = SolveIssueResponse(
-            success=True,
-            issue_number=result.get("issue_number"),
-            issue_title=result.get("issue_title"),
-            analysis=result.get("issue_analysis"),
-            solution=result.get("proposed_solution"),
-            code_changes=result.get("code_changes"),
-            final_response=result.get("final_response"),
-        )
-        
-        return response
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

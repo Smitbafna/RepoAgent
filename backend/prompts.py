@@ -1,79 +1,63 @@
 """All prompts for the GitHub Issue Solver."""
 
-# Prompt for analyzing GitHub issues
-ISSUE_ANALYSIS_PROMPT = """
-You are an expert software engineer analyzing a GitHub issue. 
-
-Please analyze the following GitHub issue and provide:
-1. A clear understanding of the problem
-2. The type of issue (bug, feature request, question, documentation, etc.)
-3. The complexity level (low, medium, high)
-4. Key technical details
+PLANNER_PROMPT = """
+You are an expert software engineer analyzing a GitHub issue.
 
 Issue Title: {title}
 Issue Body: {body}
-Labels: {labels}
-Comments: {comments}
 
-Please provide a structured analysis.
+Analyze this issue and provide:
+1. A clear understanding of the problem
+2. The type of issue (bug, feature, question, documentation)
+3. Key files that likely need to be modified
+4. A plan for solving this issue
+
+Keep your response concise and focused.
 """
 
-# Prompt for generating solutions
-SOLUTION_GENERATION_PROMPT = """
-You are an expert software engineer tasked with solving a GitHub issue.
-
-Based on the issue analysis below, generate a detailed solution:
+REASONING_PROMPT = """
+You are an expert software engineer. Based on the issue and repository context, reason through the solution.
 
 Issue: {title}
-Analysis: {analysis}
-Issue Type: {issue_type}
-Complexity: {complexity}
+Issue Body: {body}
+Repository: {repo_info}
+Files Found: {files}
 
-Please provide:
-1. A clear explanation of the solution approach
-2. Specific code changes needed (with file paths and code snippets)
-3. Any potential edge cases or considerations
+Think through:
+1. What is the root cause of the issue?
+2. What changes are needed?
+3. What is the best approach to implement the fix?
+
+Provide your reasoning step by step.
 """
 
-# Prompt for generating code changes
-CODE_CHANGE_PROMPT = """
+PATCH_PROMPT = """
 You are an expert software engineer. Generate the exact code changes needed to fix this issue.
 
 Issue: {title}
 Issue Body: {body}
-Proposed Solution: {solution}
+Reasoning: {reasoning}
+Files to Modify: {files}
 
-Please provide:
-1. The file(s) that need to be modified
-2. The exact code changes (in diff format or code blocks)
-3. Any new files that need to be created
+Provide the code changes in a clear format showing:
+1. File path
+2. The exact changes needed (diff format or code blocks)
+3. Any new files to create
+
+Be precise and include complete code snippets.
 """
 
-# Prompt for creating final response
-FINAL_RESPONSE_PROMPT = """
-You are a helpful GitHub assistant. Create a professional response to the issue author.
+REVIEW_PROMPT = """
+Review the proposed changes for this GitHub issue.
 
 Issue: {title}
-Solution: {solution}
-Code Changes: {code_changes}
+Issue Body: {body}
+Patch: {patch}
 
-Please write a clear, helpful response that:
-1. Acknowledges the issue
-2. Explains the solution
-3. Provides the code changes
-4. Offers to help with any questions
-"""
+Evaluate:
+1. Does the patch correctly address the issue?
+2. Are there any edge cases or potential issues?
+3. Is the code quality good?
 
-# Prompt for determining next action
-NEXT_ACTION_PROMPT = """
-Based on the current state, determine the next action:
-
-Current State:
-- Issue URL: {issue_url}
-- Issue fetched: {issue_fetched}
-- Analysis done: {analysis_done}
-- Solution generated: {solution_generated}
-- Code changes ready: {code_changes_ready}
-
-What should be the next step? (fetch_issue, analyze_issue, generate_solution, generate_code, create_response, post_response, error)
+Provide feedback and approval status.
 """
