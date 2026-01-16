@@ -14,3 +14,5 @@ class GraphState(TypedDict):
     owner: str
     repo_name: str
     repo_context: dict
+    candidate_directories: list
+    candidate_files: list

@@ -1,10 +1,11 @@
 """LangGraph workflow for GitHub Issue Solver."""
 
+import json
 from typing import Dict, Any
 from langgraph.graph import StateGraph, END
 from state import GraphState
 from tools import fetch_issue, extract_repo_info_from_url, build_repo_context, format_repo_context_for_prompt, call_gemini
-from prompts import PLANNER_PROMPT, REASONING_PROMPT, PATCH_PROMPT
+from prompts import PLANNER_PROMPT, REASONING_PROMPT, PATCH_PROMPT, RANK_FILES_PROMPT
 
 
 def fetch_issue_node(state: GraphState) -> Dict[str, Any]:
@@ -22,19 +23,56 @@ def fetch_repo_context_node(state: GraphState) -> Dict[str, Any]:
 
 def planner_node(state: GraphState) -> Dict[str, Any]:
     """Node to plan the solution using Gemini."""
+    repo_context = state.get("repo_context", {})
+    formatted_context = format_repo_context_for_prompt(repo_context)
     prompt = PLANNER_PROMPT.format(
         title=state["issue"]["title"],
-        body=state["issue"]["body"]
+        body=state["issue"]["body"],
+        labels=state["issue"].get("labels", []),
+        repo_context=formatted_context
     )
-    reasoning = call_gemini(prompt)
-    return {"reasoning": reasoning}
+    response = call_gemini(prompt)
+    try:
+        result = json.loads(response)
+        return {
+            "reasoning": result.get("reasoning", response),
+            "candidate_directories": result.get("directories", [])
+        }
+    except json.JSONDecodeError:
+        return {"reasoning": response, "candidate_directories": []}
 
 
 def find_files_node(state: GraphState) -> Dict[str, Any]:
     """Node to find relevant files in the repository."""
-    # Use repo_context to get file information
+    # Use candidate_directories from planner output to filter files
+    candidate_directories = state.get("candidate_directories", [])
     repo_context = state.get("repo_context", {})
-    return {"files": repo_context.get("source_dirs", [])}
+    
+    if candidate_directories:
+        # Filter files to only include those in the identified directories
+        all_files = repo_context.get("tree", [])
+        files = [f for f in all_files if any(f.startswith(d) for d in candidate_directories)]
+    else:
+        files = repo_context.get("source_dirs", [])
+    
+    return {"files": files}
+
+
+def rank_files_node(state: GraphState) -> Dict[str, Any]:
+    """Node to rank files for inspection using Gemini."""
+    files = state.get("files", [])
+    prompt = RANK_FILES_PROMPT.format(
+        title=state["issue"]["title"],
+        body=state["issue"]["body"],
+        labels=state["issue"].get("labels", []),
+        files=files
+    )
+    response = call_gemini(prompt)
+    try:
+        result = json.loads(response)
+        return {"candidate_files": result.get("files", [])[:10]}  # Limit to 10 files
+    except json.JSONDecodeError:
+        return {"candidate_files": files[:10]}
 
 
 def reason_node(state: GraphState) -> Dict[str, Any]:
@@ -73,6 +111,7 @@ def create_graph() -> StateGraph:
     workflow.add_node("fetch_repo_context", fetch_repo_context_node)
     workflow.add_node("planner", planner_node)
     workflow.add_node("find_files", find_files_node)
+    workflow.add_node("rank_files", rank_files_node)
     workflow.add_node("reason", reason_node)
     workflow.add_node("generate_fix", generate_fix_node)
     
@@ -80,7 +119,8 @@ def create_graph() -> StateGraph:
     workflow.add_edge("fetch_issue", "fetch_repo_context")
     workflow.add_edge("fetch_repo_context", "planner")
     workflow.add_edge("planner", "find_files")
-    workflow.add_edge("find_files", "reason")
+    workflow.add_edge("find_files", "rank_files")
+    workflow.add_edge("rank_files", "reason")
     workflow.add_edge("reason", "generate_fix")
     workflow.add_edge("generate_fix", END)
     

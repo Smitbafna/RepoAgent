@@ -44,6 +44,8 @@ class AnalyzeResponse(BaseModel):
     reasoning: Optional[str] = None
     patch: Optional[str] = None
     repo_context: Optional[dict] = None
+    candidate_directories: Optional[list] = None
+    candidate_files: Optional[list] = None
     error: Optional[str] = None
 
 
@@ -67,7 +69,9 @@ async def analyze(request: AnalyzeRequest):
         patch="",
         owner="",
         repo_name="",
-        repo_context={}
+        repo_context={},
+        candidate_directories=[],
+        candidate_files=[]
     )
     
     try:
@@ -83,6 +87,8 @@ async def analyze(request: AnalyzeRequest):
             reasoning=result.get("reasoning"),
             patch=result.get("patch"),
             repo_context=result.get("repo_context"),
+            candidate_directories=result.get("candidate_directories"),
+            candidate_files=result.get("candidate_files"),
         )
         
     except Exception as e:

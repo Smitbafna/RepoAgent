@@ -1,18 +1,28 @@
 """All prompts for the GitHub Issue Solver."""
 
 PLANNER_PROMPT = """
-You are an expert software engineer analyzing a GitHub issue.
+You are a senior software engineer.
+
+Given:
+
+1. GitHub Issue
+2. Repository Structure
+
+Determine which parts of the repository are most likely involved.
+
+Return ONLY JSON.
+
+Output:
+
+{
+  "directories": [],
+  "reasoning": ""
+}
 
 Issue Title: {title}
-Issue Body: {body}
-
-Analyze this issue and provide:
-1. A clear understanding of the problem
-2. The type of issue (bug, feature, question, documentation)
-3. Key files that likely need to be modified
-4. A plan for solving this issue
-
-Keep your response concise and focused.
+Issue Description: {body}
+Labels: {labels}
+Repository Context: {repo_context}
 """
 
 REASONING_PROMPT = """
@@ -48,6 +58,33 @@ Provide the code changes in a clear format showing:
 3. Any new files to create
 
 Be precise and include complete code snippets.
+"""
+
+RANK_FILES_PROMPT = """
+You are a senior software engineer.
+
+Here are the files available in the repository.
+
+Which ones should be inspected first?
+
+Return at most 10 files.
+
+Return ONLY JSON.
+
+Output:
+
+{
+  "files": [
+    "pkg/webhooks/server.go",
+    "pkg/webhooks/register.go",
+    "test/conformance/setup.go"
+  ]
+}
+
+Issue Title: {title}
+Issue Description: {body}
+Labels: {labels}
+Available Files: {files}
 """
 
 REVIEW_PROMPT = """
