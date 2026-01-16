@@ -3,7 +3,7 @@
 from typing import Dict, Any
 from langgraph.graph import StateGraph, END
 from state import GraphState
-from tools import fetch_issue, extract_repo_info_from_url, call_gemini
+from tools import fetch_issue, extract_repo_info_from_url, build_repo_context, format_repo_context_for_prompt, call_gemini
 from prompts import PLANNER_PROMPT, REASONING_PROMPT, PATCH_PROMPT
 
 
@@ -12,6 +12,12 @@ def fetch_issue_node(state: GraphState) -> Dict[str, Any]:
     issue = fetch_issue(state["issue_url"])
     owner, repo_name = extract_repo_info_from_url(state["issue_url"])
     return {"issue": issue, "owner": owner, "repo_name": repo_name}
+
+
+def fetch_repo_context_node(state: GraphState) -> Dict[str, Any]:
+    """Node to fetch repository context."""
+    repo_context = build_repo_context(state["owner"], state["repo_name"])
+    return {"repo_context": repo_context}
 
 
 def planner_node(state: GraphState) -> Dict[str, Any]:
@@ -26,17 +32,21 @@ def planner_node(state: GraphState) -> Dict[str, Any]:
 
 def find_files_node(state: GraphState) -> Dict[str, Any]:
     """Node to find relevant files in the repository."""
-    # For now, return empty files list - can be enhanced later
-    return {"files": []}
+    # Use repo_context to get file information
+    repo_context = state.get("repo_context", {})
+    return {"files": repo_context.get("source_dirs", [])}
 
 
 def reason_node(state: GraphState) -> Dict[str, Any]:
     """Node to reason through the solution."""
+    repo_context = state.get("repo_context", {})
+    formatted_context = format_repo_context_for_prompt(repo_context)
     prompt = REASONING_PROMPT.format(
         title=state["issue"]["title"],
         body=state["issue"]["body"],
         repo_info=f"{state.get('owner', '')}/{state.get('repo_name', '')}",
-        files=state.get("files", [])
+        files=state.get("files", []),
+        repo_context=formatted_context
     )
     reasoning = call_gemini(prompt)
     return {"reasoning": reasoning}
@@ -60,13 +70,15 @@ def create_graph() -> StateGraph:
     
     # Add nodes
     workflow.add_node("fetch_issue", fetch_issue_node)
+    workflow.add_node("fetch_repo_context", fetch_repo_context_node)
     workflow.add_node("planner", planner_node)
     workflow.add_node("find_files", find_files_node)
     workflow.add_node("reason", reason_node)
     workflow.add_node("generate_fix", generate_fix_node)
     
     # Add edges
-    workflow.add_edge("fetch_issue", "planner")
+    workflow.add_edge("fetch_issue", "fetch_repo_context")
+    workflow.add_edge("fetch_repo_context", "planner")
     workflow.add_edge("planner", "find_files")
     workflow.add_edge("find_files", "reason")
     workflow.add_edge("reason", "generate_fix")

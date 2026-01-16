@@ -43,6 +43,7 @@ class AnalyzeResponse(BaseModel):
     code: Optional[dict] = None
     reasoning: Optional[str] = None
     patch: Optional[str] = None
+    repo_context: Optional[dict] = None
     error: Optional[str] = None
 
 
@@ -65,7 +66,8 @@ async def analyze(request: AnalyzeRequest):
         reasoning="",
         patch="",
         owner="",
-        repo_name=""
+        repo_name="",
+        repo_context={}
     )
     
     try:
@@ -80,6 +82,7 @@ async def analyze(request: AnalyzeRequest):
             code=result.get("code"),
             reasoning=result.get("reasoning"),
             patch=result.get("patch"),
+            repo_context=result.get("repo_context"),
         )
         
     except Exception as e:

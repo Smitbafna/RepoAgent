@@ -13,3 +13,4 @@ class GraphState(TypedDict):
     patch: str
     owner: str
     repo_name: str
+    repo_context: dict

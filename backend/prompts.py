@@ -23,6 +23,9 @@ Issue Body: {body}
 Repository: {repo_info}
 Files Found: {files}
 
+Repository Context:
+{repo_context}
+
 Think through:
 1. What is the root cause of the issue?
 2. What changes are needed?
