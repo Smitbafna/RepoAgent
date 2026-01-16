@@ -11,3 +11,5 @@ class GraphState(TypedDict):
     code: dict
     reasoning: str
     patch: str
+    owner: str
+    repo_name: str

@@ -2,6 +2,7 @@
 
 import os
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 
@@ -17,6 +18,15 @@ fastapi_app = FastAPI(
     title="GitHub Issue Solver",
     description="AI-powered GitHub issue solver using LangGraph and Gemini",
     version="0.1.0",
+)
+
+# Add CORS middleware
+fastapi_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (configure for production)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -53,7 +63,9 @@ async def analyze(request: AnalyzeRequest):
         files=[],
         code={},
         reasoning="",
-        patch=""
+        patch="",
+        owner="",
+        repo_name=""
     )
     
     try:

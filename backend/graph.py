@@ -3,14 +3,15 @@
 from typing import Dict, Any
 from langgraph.graph import StateGraph, END
 from state import GraphState
-from tools import fetch_issue, fetch_repo, read_file, call_gemini
+from tools import fetch_issue, extract_repo_info_from_url, call_gemini
 from prompts import PLANNER_PROMPT, REASONING_PROMPT, PATCH_PROMPT
 
 
 def fetch_issue_node(state: GraphState) -> Dict[str, Any]:
     """Node to fetch issue details from GitHub."""
     issue = fetch_issue(state["issue_url"])
-    return {"issue": issue}
+    owner, repo_name = extract_repo_info_from_url(state["issue_url"])
+    return {"issue": issue, "owner": owner, "repo_name": repo_name}
 
 
 def planner_node(state: GraphState) -> Dict[str, Any]:
@@ -25,7 +26,6 @@ def planner_node(state: GraphState) -> Dict[str, Any]:
 
 def find_files_node(state: GraphState) -> Dict[str, Any]:
     """Node to find relevant files in the repository."""
-    repo = fetch_repo()
     # For now, return empty files list - can be enhanced later
     return {"files": []}
 
@@ -35,7 +35,7 @@ def reason_node(state: GraphState) -> Dict[str, Any]:
     prompt = REASONING_PROMPT.format(
         title=state["issue"]["title"],
         body=state["issue"]["body"],
-        repo_info=state.get("repo_info", ""),
+        repo_info=f"{state.get('owner', '')}/{state.get('repo_name', '')}",
         files=state.get("files", [])
     )
     reasoning = call_gemini(prompt)

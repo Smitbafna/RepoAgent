@@ -21,6 +21,15 @@ if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
 
 
+def extract_repo_info_from_url(url: str) -> Optional[tuple]:
+    """Extract owner and repo name from GitHub issue URL."""
+    pattern = r"github\.com/([^/]+)/([^/]+)/issues/\d+"
+    match = re.search(pattern, url)
+    if match:
+        return match.group(1), match.group(2)
+    return None
+
+
 def extract_issue_number_from_url(url: str) -> Optional[int]:
     """Extract issue number from GitHub issue URL."""
     pattern = r"github\.com/[^/]+/[^/]+/issues/(\d+)"
@@ -42,15 +51,17 @@ def fetch_issue(issue_url: str) -> dict:
     if not GITHUB_TOKEN:
         raise ValueError("GITHUB_TOKEN not found in environment variables")
     
-    if not GITHUB_REPO_OWNER or not GITHUB_REPO_NAME:
-        raise ValueError("GITHUB_REPO_OWNER and GITHUB_REPO_NAME must be set")
-    
     issue_number = extract_issue_number_from_url(issue_url)
     if not issue_number:
         raise ValueError(f"Could not extract issue number from URL: {issue_url}")
     
+    repo_info = extract_repo_info_from_url(issue_url)
+    if not repo_info:
+        raise ValueError(f"Could not extract repo info from URL: {issue_url}")
+    
+    owner, repo_name = repo_info
     client = Github(GITHUB_TOKEN)
-    repo = client.get_repo(f"{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}")
+    repo = client.get_repo(f"{owner}/{repo_name}")
     issue = repo.get_issue(issue_number)
     
     # Fetch comments
@@ -91,11 +102,13 @@ def fetch_repo() -> dict:
     }
 
 
-def read_file(file_path: str) -> str:
+def read_file(file_path: str, owner: str = None, repo_name: str = None) -> str:
     """Read a file from the repository.
     
     Args:
         file_path: Path to the file in the repository
+        owner: Repository owner (extracted from env if not provided)
+        repo_name: Repository name (extracted from env if not provided)
         
     Returns:
         File contents as string
@@ -103,11 +116,14 @@ def read_file(file_path: str) -> str:
     if not GITHUB_TOKEN:
         raise ValueError("GITHUB_TOKEN not found in environment variables")
     
-    if not GITHUB_REPO_OWNER or not GITHUB_REPO_NAME:
-        raise ValueError("GITHUB_REPO_OWNER and GITHUB_REPO_NAME must be set")
+    if not owner or not repo_name:
+        if not GITHUB_REPO_OWNER or not GITHUB_REPO_NAME:
+            raise ValueError("GITHUB_REPO_OWNER and GITHUB_REPO_NAME must be set")
+        owner = GITHUB_REPO_OWNER
+        repo_name = GITHUB_REPO_NAME
     
     client = Github(GITHUB_TOKEN)
-    repo = client.get_repo(f"{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}")
+    repo = client.get_repo(f"{owner}/{repo_name}")
     
     try:
         file_content = repo.get_contents(file_path)
@@ -148,7 +164,7 @@ def search_issues(query: str) -> List[dict]:
     return results
 
 
-def call_gemini(prompt: str, model_name: str = "gemini-pro") -> str:
+def call_gemini(prompt: str, model_name: str = "gemini-flash-lite-latest") -> str:
     """Call Gemini API with a prompt.
     
     Args:
