@@ -102,6 +102,31 @@ def fetch_repo() -> dict:
     }
 
 
+def fetch_repo_metadata(owner: str, repo_name: str) -> dict:
+    """Fetch repository metadata for a given owner and repo.
+    
+    Args:
+        owner: Repository owner
+        repo_name: Repository name
+        
+    Returns:
+        Dictionary containing repository metadata
+    """
+    if not GITHUB_TOKEN:
+        raise ValueError("GITHUB_TOKEN not found in environment variables")
+    
+    client = Github(GITHUB_TOKEN)
+    repo = client.get_repo(f"{owner}/{repo_name}")
+    
+    return {
+        "repo_name": repo.name,
+        "description": repo.description,
+        "default_branch": repo.default_branch,
+        "language": repo.language,
+        "stars": repo.stargazers_count,
+    }
+
+
 def read_file(file_path: str, owner: str = None, repo_name: str = None) -> str:
     """Read a file from the repository.
     
