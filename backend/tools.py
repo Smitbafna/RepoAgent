@@ -20,6 +20,9 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
 
+print("GITHUB_TOKEN:", repr(os.getenv("GITHUB_TOKEN")))
+print("GITHUB_REPO_OWNER:", repr(os.getenv("GITHUB_REPO_OWNER")))
+print("GITHUB_REPO_NAME:", repr(os.getenv("GITHUB_REPO_NAME")))
 
 def extract_repo_info_from_url(url: str) -> Optional[tuple]:
     """Extract owner and repo name from GitHub issue URL."""
