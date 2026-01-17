@@ -14,10 +14,10 @@ Return ONLY JSON.
 
 Output:
 
-{
+{{
   "directories": [],
   "reasoning": ""
-}
+}}
 
 Issue Title: {title}
 Issue Description: {body}
@@ -73,13 +73,20 @@ Return ONLY JSON.
 
 Output:
 
-{
-  "files": [
-    "pkg/webhooks/server.go",
-    "pkg/webhooks/register.go",
-    "test/conformance/setup.go"
-  ]
-}
+[
+  {{
+    "file": "pkg/webhooks/server.go",
+    "confidence": 0.95
+  }},
+  {{
+    "file": "pkg/webhooks/register.go",
+    "confidence": 0.81
+  }},
+  {{
+    "file": "test/conformance/setup.go",
+    "confidence": 0.74
+  }}
+]
 
 Issue Title: {title}
 Issue Description: {body}

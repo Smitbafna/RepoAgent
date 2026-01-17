@@ -14,6 +14,11 @@ export interface RepoContext {
   tree?: string[];
 }
 
+export interface FileConfidence {
+  file: string;
+  confidence: number;
+}
+
 export interface AnalyzeResponse {
   success: boolean;
   issue?: {
@@ -30,6 +35,9 @@ export interface AnalyzeResponse {
   reasoning?: string;
   patch?: string;
   repo_context?: RepoContext;
+  candidate_directories?: string[];
+  candidate_files?: string[];
+  file_confidences?: FileConfidence[];
   error?: string;
 }
 

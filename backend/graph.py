@@ -1,11 +1,92 @@
 """LangGraph workflow for GitHub Issue Solver."""
 
 import json
+import re
 from typing import Dict, Any
 from langgraph.graph import StateGraph, END
 from state import GraphState
 from tools import fetch_issue, extract_repo_info_from_url, build_repo_context, format_repo_context_for_prompt, call_gemini
 from prompts import PLANNER_PROMPT, REASONING_PROMPT, PATCH_PROMPT, RANK_FILES_PROMPT
+
+
+def extract_json_from_response(response: str) -> Any:
+    """Extract JSON from a response that may contain extra text.
+    
+    Args:
+        response: Raw response from Gemini
+        
+    Returns:
+        Parsed JSON object or None if parsing fails
+    """
+    # Try to find JSON in the response
+    response = response.strip()
+    
+    # Check if response looks like it starts with a newline (common issue)
+    if response.startswith('\n') or response.startswith('\r'):
+        response = response.lstrip('\r\n')
+    
+    # Try direct parsing first
+    try:
+        return json.loads(response)
+    except json.JSONDecodeError:
+        pass
+    
+    # Try to find JSON array or object in the response
+    # Use a more robust approach to find balanced brackets
+    def find_balanced_json(text: str, start_char: str, end_char: str) -> str:
+        """Find balanced JSON by counting brackets."""
+        if start_char not in text:
+            return None
+        start_idx = text.find(start_char)
+        if start_idx == -1:
+            return None
+        
+        count = 0
+        in_string = False
+        escape = False
+        
+        for i in range(start_idx, len(text)):
+            char = text[i]
+            if escape:
+                escape = False
+                continue
+            if char == '\\' and in_string:
+                escape = True
+                continue
+            if char == '"':
+                in_string = not in_string
+            elif not in_string:
+                if char == start_char:
+                    count += 1
+                elif char == end_char:
+                    count -= 1
+                    if count == 0:
+                        return text[start_idx:i+1]
+        return None
+    
+    # Try to find JSON array
+    array_json = find_balanced_json(response, '[', ']')
+    if array_json:
+        try:
+            parsed = json.loads(array_json)
+            # Ensure it's a valid list
+            if isinstance(parsed, list):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+    
+    # Try to find JSON object
+    object_json = find_balanced_json(response, '{', '}')
+    if object_json:
+        try:
+            parsed = json.loads(object_json)
+            # Ensure it's a valid dict
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+    
+    return None
 
 
 def fetch_issue_node(state: GraphState) -> Dict[str, Any]:
@@ -23,23 +104,28 @@ def fetch_repo_context_node(state: GraphState) -> Dict[str, Any]:
 
 def planner_node(state: GraphState) -> Dict[str, Any]:
     """Node to plan the solution using Gemini."""
-    repo_context = state.get("repo_context", {})
-    formatted_context = format_repo_context_for_prompt(repo_context)
-    prompt = PLANNER_PROMPT.format(
-        title=state["issue"]["title"],
-        body=state["issue"]["body"],
-        labels=state["issue"].get("labels", []),
-        repo_context=formatted_context
-    )
-    response = call_gemini(prompt)
     try:
-        result = json.loads(response)
+        repo_context = state.get("repo_context", {})
+        formatted_context = format_repo_context_for_prompt(repo_context)
+        prompt = PLANNER_PROMPT.format(
+            title=state["issue"]["title"],
+            body=state["issue"]["body"],
+            labels=state["issue"].get("labels", []),
+            repo_context=formatted_context
+        )
+        response = call_gemini(prompt)
+        result = extract_json_from_response(response)
+        if result is None or not isinstance(result, dict):
+            # Log the response for debugging
+            print(f"DEBUG: planner_node response: {response[:200]}...")
+            return {"reasoning": response, "candidate_directories": []}
         return {
             "reasoning": result.get("reasoning", response),
             "candidate_directories": result.get("directories", [])
         }
-    except json.JSONDecodeError:
-        return {"reasoning": response, "candidate_directories": []}
+    except Exception as e:
+        print(f"DEBUG: planner_node error: {e}")
+        return {"reasoning": f"Error in planner: {e}", "candidate_directories": []}
 
 
 def find_files_node(state: GraphState) -> Dict[str, Any]:
@@ -48,12 +134,18 @@ def find_files_node(state: GraphState) -> Dict[str, Any]:
     candidate_directories = state.get("candidate_directories", [])
     repo_context = state.get("repo_context", {})
     
+    # Ensure candidate_directories is a list
+    if not isinstance(candidate_directories, list):
+        candidate_directories = []
+    
+    all_files = repo_context.get("tree", [])
+    
     if candidate_directories:
         # Filter files to only include those in the identified directories
-        all_files = repo_context.get("tree", [])
         files = [f for f in all_files if any(f.startswith(d) for d in candidate_directories)]
     else:
-        files = repo_context.get("source_dirs", [])
+        # Use all source files from the tree when no directories are specified
+        files = all_files
     
     return {"files": files}
 
@@ -68,11 +160,23 @@ def rank_files_node(state: GraphState) -> Dict[str, Any]:
         files=files
     )
     response = call_gemini(prompt)
-    try:
-        result = json.loads(response)
-        return {"candidate_files": result.get("files", [])[:10]}  # Limit to 10 files
-    except json.JSONDecodeError:
-        return {"candidate_files": files[:10]}
+    result = extract_json_from_response(response)
+    if result is None or not isinstance(result, list):
+        return {"candidate_files": files[:10], "file_confidences": []}
+    # Extract file names and confidences from the response
+    candidate_files = []
+    file_confidences = []
+    for item in result[:10]:  # Limit to 10 files
+        if isinstance(item, dict) and "file" in item:
+            candidate_files.append(item["file"])
+            file_confidences.append({
+                "file": item["file"],
+                "confidence": item.get("confidence", 0.0)
+            })
+    return {
+        "candidate_files": candidate_files,
+        "file_confidences": file_confidences
+    }
 
 
 def reason_node(state: GraphState) -> Dict[str, Any]:

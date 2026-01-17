@@ -98,6 +98,26 @@ export default function Page() {
               </Card>
             )}
 
+            {result.file_confidences && result.file_confidences.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Ranked Files</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {result.file_confidences.map((fc) => (
+                      <div key={fc.file} className="flex items-center justify-between">
+                        <span className="font-mono text-xs">{fc.file}</span>
+                        <span className="rounded bg-blue-100 px-2 py-1 text-xs font-medium">
+                          {(fc.confidence * 100).toFixed(0)}% confidence
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {result.reasoning && (
               <Card>
                 <CardHeader>
