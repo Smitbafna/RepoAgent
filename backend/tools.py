@@ -10,19 +10,7 @@ import google.generativeai as genai
 # Load environment variables
 load_dotenv()
 
-# GitHub configuration
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-GITHUB_REPO_OWNER = os.getenv("GITHUB_REPO_OWNER")
-GITHUB_REPO_NAME = os.getenv("GITHUB_REPO_NAME")
 
-# Gemini configuration
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
-
-print("GITHUB_TOKEN:", repr(os.getenv("GITHUB_TOKEN")))
-print("GITHUB_REPO_OWNER:", repr(os.getenv("GITHUB_REPO_OWNER")))
-print("GITHUB_REPO_NAME:", repr(os.getenv("GITHUB_REPO_NAME")))
 
 def extract_repo_info_from_url(url: str) -> Optional[tuple]:
     """Extract owner and repo name from GitHub issue URL."""
@@ -51,8 +39,11 @@ def fetch_issue(issue_url: str) -> dict:
     Returns:
         Dictionary containing issue details
     """
-    if not GITHUB_TOKEN:
-        raise ValueError("GITHUB_TOKEN not found in environment variables")
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        raise ValueError(
+            f"GITHUB_TOKEN missing. Current env keys: {list(os.environ.keys())}"
+        )
     
     issue_number = extract_issue_number_from_url(issue_url)
     if not issue_number:
@@ -63,7 +54,7 @@ def fetch_issue(issue_url: str) -> dict:
         raise ValueError(f"Could not extract repo info from URL: {issue_url}")
     
     owner, repo_name = repo_info
-    client = Github(GITHUB_TOKEN)
+    client = Github(token)
     repo = client.get_repo(f"{owner}/{repo_name}")
     issue = repo.get_issue(issue_number)
     
@@ -87,14 +78,21 @@ def fetch_repo() -> dict:
     Returns:
         Dictionary containing repository details
     """
-    if not GITHUB_TOKEN:
-        raise ValueError("GITHUB_TOKEN not found in environment variables")
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        raise ValueError(
+            f"GITHUB_TOKEN missing. Current env keys: {list(os.environ.keys())}"
+        )
     
-    if not GITHUB_REPO_OWNER or not GITHUB_REPO_NAME:
-        raise ValueError("GITHUB_REPO_OWNER and GITHUB_REPO_NAME must be set")
+    owner = os.getenv("GITHUB_REPO_OWNER")
+    repo_name = os.getenv("GITHUB_REPO_NAME")
+    if not owner or not repo_name:
+        raise ValueError(
+            f"GITHUB_REPO_OWNER or GITHUB_REPO_NAME missing. Current env keys: {list(os.environ.keys())}"
+        )
     
-    client = Github(GITHUB_TOKEN)
-    repo = client.get_repo(f"{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}")
+    client = Github(token)
+    repo = client.get_repo(f"{owner}/{repo_name}")
     
     return {
         "name": repo.name,
@@ -115,10 +113,13 @@ def fetch_repo_metadata(owner: str, repo_name: str) -> dict:
     Returns:
         Dictionary containing repository metadata
     """
-    if not GITHUB_TOKEN:
-        raise ValueError("GITHUB_TOKEN not found in environment variables")
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        raise ValueError(
+            f"GITHUB_TOKEN missing. Current env keys: {list(os.environ.keys())}"
+        )
     
-    client = Github(GITHUB_TOKEN)
+    client = Github(token)
     repo = client.get_repo(f"{owner}/{repo_name}")
     
     return {
@@ -141,10 +142,13 @@ def fetch_repo_tree(owner: str, repo_name: str, branch: str = "main") -> list:
     Returns:
         List of file/directory paths in the repository
     """
-    if not GITHUB_TOKEN:
-        raise ValueError("GITHUB_TOKEN not found in environment variables")
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        raise ValueError(
+            f"GITHUB_TOKEN missing. Current env keys: {list(os.environ.keys())}"
+        )
     
-    client = Github(GITHUB_TOKEN)
+    client = Github(token)
     repo = client.get_repo(f"{owner}/{repo_name}")
     
     # Get the default branch if not specified
@@ -288,8 +292,11 @@ def build_repo_context(owner: str, repo_name: str) -> dict:
     Returns:
         Dictionary containing repository context
     """
-    if not GITHUB_TOKEN:
-        raise ValueError("GITHUB_TOKEN not found in environment variables")
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        raise ValueError(
+            f"GITHUB_TOKEN missing. Current env keys: {list(os.environ.keys())}"
+        )
     
     # Fetch metadata
     metadata = fetch_repo_metadata(owner, repo_name)
@@ -382,16 +389,21 @@ def read_file(file_path: str, owner: str = None, repo_name: str = None) -> str:
     Returns:
         File contents as string
     """
-    if not GITHUB_TOKEN:
-        raise ValueError("GITHUB_TOKEN not found in environment variables")
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        raise ValueError(
+            f"GITHUB_TOKEN missing. Current env keys: {list(os.environ.keys())}"
+        )
     
     if not owner or not repo_name:
-        if not GITHUB_REPO_OWNER or not GITHUB_REPO_NAME:
-            raise ValueError("GITHUB_REPO_OWNER and GITHUB_REPO_NAME must be set")
-        owner = GITHUB_REPO_OWNER
-        repo_name = GITHUB_REPO_NAME
+        owner = os.getenv("GITHUB_REPO_OWNER")
+        repo_name = os.getenv("GITHUB_REPO_NAME")
+        if not owner or not repo_name:
+            raise ValueError(
+                f"GITHUB_REPO_OWNER or GITHUB_REPO_NAME missing. Current env keys: {list(os.environ.keys())}"
+            )
     
-    client = Github(GITHUB_TOKEN)
+    client = Github(token)
     repo = client.get_repo(f"{owner}/{repo_name}")
     
     try:
@@ -410,14 +422,21 @@ def search_issues(query: str) -> List[dict]:
     Returns:
         List of matching issues
     """
-    if not GITHUB_TOKEN:
-        raise ValueError("GITHUB_TOKEN not found in environment variables")
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        raise ValueError(
+            f"GITHUB_TOKEN missing. Current env keys: {list(os.environ.keys())}"
+        )
     
-    if not GITHUB_REPO_OWNER or not GITHUB_REPO_NAME:
-        raise ValueError("GITHUB_REPO_OWNER and GITHUB_REPO_NAME must be set")
+    owner = os.getenv("GITHUB_REPO_OWNER")
+    repo_name = os.getenv("GITHUB_REPO_NAME")
+    if not owner or not repo_name:
+        raise ValueError(
+            f"GITHUB_REPO_OWNER or GITHUB_REPO_NAME missing. Current env keys: {list(os.environ.keys())}"
+        )
     
-    client = Github(GITHUB_TOKEN)
-    repo = client.get_repo(f"{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}")
+    client = Github(token)
+    repo = client.get_repo(f"{owner}/{repo_name}")
     
     issues = repo.get_issues(state="open")
     results = []
@@ -443,8 +462,11 @@ def call_gemini(prompt: str, model_name: str = "gemini-flash-lite-latest") -> st
     Returns:
         Generated text response
     """
-    if not GOOGLE_API_KEY:
-        raise ValueError("GOOGLE_API_KEY not found in environment variables")
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise ValueError(
+            f"GOOGLE_API_KEY missing. Current env keys: {list(os.environ.keys())}"
+        )
     
     model = genai.GenerativeModel(model_name)
     response = model.generate_content(prompt)
