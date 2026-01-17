@@ -162,21 +162,36 @@ def rank_files_node(state: GraphState) -> Dict[str, Any]:
     response = call_gemini(prompt)
     result = extract_json_from_response(response)
     if result is None or not isinstance(result, list):
-        return {"candidate_files": files[:10], "file_confidences": []}
-    # Extract file names and confidences from the response
+        return {"candidate_files": files[:10], "file_reasons": []}
+    # Extract file names and reasons from the response
     candidate_files = []
-    file_confidences = []
+    file_reasons = []
     for item in result[:10]:  # Limit to 10 files
         if isinstance(item, dict) and "file" in item:
             candidate_files.append(item["file"])
-            file_confidences.append({
+            file_reasons.append({
                 "file": item["file"],
-                "confidence": item.get("confidence", 0.0)
+                "reason": item.get("reason", "")
             })
     return {
         "candidate_files": candidate_files,
-        "file_confidences": file_confidences
+        "file_reasons": file_reasons
     }
+
+
+def save_investigation_plan_node(state: GraphState) -> Dict[str, Any]:
+    """Node to save the investigation plan with directories, files, and reasons."""
+    candidate_directories = state.get("candidate_directories", [])
+    candidate_files = state.get("candidate_files", [])
+    file_reasons = state.get("file_reasons", [])
+    
+    investigation_plan = {
+        "directories": candidate_directories,
+        "files": candidate_files,
+        "reasons": file_reasons
+    }
+    
+    return {"investigation_plan": investigation_plan}
 
 
 def reason_node(state: GraphState) -> Dict[str, Any]:
@@ -216,6 +231,7 @@ def create_graph() -> StateGraph:
     workflow.add_node("planner", planner_node)
     workflow.add_node("find_files", find_files_node)
     workflow.add_node("rank_files", rank_files_node)
+    workflow.add_node("save_investigation_plan", save_investigation_plan_node)
     workflow.add_node("reason", reason_node)
     workflow.add_node("generate_fix", generate_fix_node)
     
@@ -224,7 +240,8 @@ def create_graph() -> StateGraph:
     workflow.add_edge("fetch_repo_context", "planner")
     workflow.add_edge("planner", "find_files")
     workflow.add_edge("find_files", "rank_files")
-    workflow.add_edge("rank_files", "reason")
+    workflow.add_edge("rank_files", "save_investigation_plan")
+    workflow.add_edge("save_investigation_plan", "reason")
     workflow.add_edge("reason", "generate_fix")
     workflow.add_edge("generate_fix", END)
     

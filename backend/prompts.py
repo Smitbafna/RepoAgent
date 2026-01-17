@@ -76,15 +76,15 @@ Output:
 [
   {{
     "file": "pkg/webhooks/server.go",
-    "confidence": 0.95
+    "reason": "The issue is related to workflow failures involving controller startup, and this file initializes webhook services."
   }},
   {{
     "file": "pkg/webhooks/register.go",
-    "confidence": 0.81
+    "reason": "This file handles webhook registration and may contain the logic causing the startup failure."
   }},
   {{
     "file": "test/conformance/setup.go",
-    "confidence": 0.74
+    "reason": "This file may contain test setup that reveals the root cause of the issue."
   }}
 ]
 

@@ -16,4 +16,5 @@ class GraphState(TypedDict):
     repo_context: dict
     candidate_directories: list
     candidate_files: list
-    file_confidences: list  # List of {file: str, confidence: float} objects
+    file_reasons: list  # List of {file: str, reason: str} objects
+    investigation_plan: dict  # {directories: [], files: [], reasons: []}

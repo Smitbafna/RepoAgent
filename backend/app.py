@@ -46,7 +46,8 @@ class AnalyzeResponse(BaseModel):
     repo_context: Optional[dict] = None
     candidate_directories: Optional[list] = None
     candidate_files: Optional[list] = None
-    file_confidences: Optional[list] = None
+    file_reasons: Optional[list] = None
+    investigation_plan: Optional[dict] = None
     error: Optional[str] = None
 
 
@@ -73,7 +74,8 @@ async def analyze(request: AnalyzeRequest):
         repo_context={},
         candidate_directories=[],
         candidate_files=[],
-        file_confidences=[]
+        file_reasons=[],
+        investigation_plan={}
     )
     
     try:
@@ -91,7 +93,8 @@ async def analyze(request: AnalyzeRequest):
             repo_context=result.get("repo_context"),
             candidate_directories=result.get("candidate_directories"),
             candidate_files=result.get("candidate_files"),
-            file_confidences=result.get("file_confidences"),
+            file_reasons=result.get("file_reasons"),
+            investigation_plan=result.get("investigation_plan"),
         )
         
     except Exception as e:
