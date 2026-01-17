@@ -5,7 +5,7 @@ export interface AnalyzeRequest {
 }
 
 export interface RepoContext {
-  
+
   language?: string;
   default_branch?: string;
   source_dirs?: string[];
@@ -16,6 +16,7 @@ export interface RepoContext {
 }
 
 export interface FileReason {
+  
   file: string;
   reason: string;
 }
