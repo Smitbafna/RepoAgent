@@ -1,10 +1,40 @@
 "use client";
 
 import { useState } from "react";
+import ReactMarkdown, { Components } from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { analyzeIssue, AnalyzeResponse } from "@/lib/api";
+
+const markdownComponents: Components = {
+  h1: ({ children }) => (
+    <h1 className="text-lg font-bold text-blue-600 dark:text-blue-400">{children}</h1>
+  ),
+  h2: ({ children }) => (
+    <h2 className="text-base font-semibold text-blue-500 dark:text-blue-300">{children}</h2>
+  ),
+  h3: ({ children }) => (
+    <h3 className="text-sm font-medium text-blue-400 dark:text-blue-200">{children}</h3>
+  ),
+  h4: ({ children }) => (
+    <h4 className="text-xs font-medium text-blue-300 dark:text-blue-100">{children}</h4>
+  ),
+  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+  ul: ({ children }) => <ul className="mb-2 list-disc pl-5 last:mb-0">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-2 list-decimal pl-5 last:mb-0">{children}</ol>,
+  li: ({ children }) => <li className="mb-1">{children}</li>,
+  code: ({ children, className }) => {
+    const isInline = !className;
+    if (isInline) {
+      return <code className="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-800 dark:text-gray-100">{children}</code>;
+    }
+    return <code className="text-xs dark:text-gray-100">{children}</code>;
+  },
+  pre: ({ children }) => (
+    <pre className="overflow-x-auto rounded bg-gray-100 p-2 text-xs dark:bg-gray-800 dark:text-gray-100">{children}</pre>
+  ),
+};
 
 export default function Page() {
   const [issueUrl, setIssueUrl] = useState("");
@@ -81,7 +111,7 @@ export default function Page() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="whitespace-pre-wrap">{result.issue.body}</p>
+                  <ReactMarkdown components={markdownComponents}>{result.issue.body}</ReactMarkdown>
                   {result.issue.labels.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {result.issue.labels.map((label) => (
@@ -122,7 +152,7 @@ export default function Page() {
                   <CardTitle>AI Reasoning</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="whitespace-pre-wrap">{result.reasoning}</p>
+                  <ReactMarkdown components={markdownComponents}>{result.reasoning}</ReactMarkdown>
                 </CardContent>
               </Card>
             )}
@@ -133,9 +163,9 @@ export default function Page() {
                   <CardTitle>Generated Patch</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <pre className="overflow-x-auto rounded bg-gray-100 p-4 text-xs">
-                    <code>{result.patch}</code>
-                  </pre>
+                  <div className="overflow-x-auto rounded bg-gray-100 p-4 text-xs dark:bg-gray-800 dark:text-gray-100">
+                    <ReactMarkdown components={markdownComponents}>{result.patch}</ReactMarkdown>
+                  </div>
                 </CardContent>
               </Card>
             )}
