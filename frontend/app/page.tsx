@@ -36,6 +36,11 @@ const markdownComponents: Components = {
   ),
 };
 
+// Helper function to check if a string has meaningful content
+const hasContent = (value: string | undefined | null): boolean => {
+  return value !== undefined && value !== null && value.trim().length > 0;
+};
+
 export default function Page() {
   const [issueUrl, setIssueUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -111,7 +116,11 @@ export default function Page() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ReactMarkdown components={markdownComponents}>{result.issue.body}</ReactMarkdown>
+                  {hasContent(result.issue.body) ? (
+                    <ReactMarkdown components={markdownComponents}>{result.issue.body}</ReactMarkdown>
+                  ) : (
+                    <p className="text-muted-foreground">No description provided.</p>
+                  )}
                   {result.issue.labels.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {result.issue.labels.map((label) => (
@@ -146,7 +155,7 @@ export default function Page() {
               </Card>
             )}
 
-            {result.reasoning && (
+            {hasContent(result.reasoning) && (
               <Card>
                 <CardHeader>
                   <CardTitle>AI Reasoning</CardTitle>
@@ -157,7 +166,7 @@ export default function Page() {
               </Card>
             )}
 
-            {result.patch && (
+            {hasContent(result.patch) && (
               <Card>
                 <CardHeader>
                   <CardTitle>Generated Patch</CardTitle>
