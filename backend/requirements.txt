@@ -4,4 +4,4 @@ langgraph>=0.1.0
 python-dotenv>=1.0.0
 pygithub>=2.0.0
 google-genai>=1.0.0
-```
+
