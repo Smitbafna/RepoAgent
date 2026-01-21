@@ -21,6 +21,13 @@ export interface FileReason {
   reason: string;
 }
 
+export interface MentionedIssue {
+  number: number;
+  title: string;
+  url: string;
+  mentioned_files: string[];
+}
+
 export interface AnalyzeResponse {
   success: boolean;
   issue?: {
@@ -45,6 +52,7 @@ export interface AnalyzeResponse {
     files: string[];
     reasons: FileReason[];
   };
+  mentioned_issues?: MentionedIssue[];
   error?: string;
 }
 

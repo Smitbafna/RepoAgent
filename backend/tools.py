@@ -5,11 +5,10 @@ import re
 from typing import Dict, List, Optional
 from dotenv import load_dotenv
 from github import Github, GithubException
-import google.generativeai as genai
+from google import genai
 
 # Load environment variables
 load_dotenv()
-
 
 
 def extract_repo_info_from_url(url: str) -> Optional[tuple]:
@@ -452,7 +451,87 @@ def search_issues(query: str) -> List[dict]:
     return results
 
 
-def call_gemini(prompt: str, model_name: str = "gemini-flash-lite-latest") -> str:
+def search_issues_by_mentioned_files(owner: str, repo_name: str, file_names: List[str]) -> List[dict]:
+    """Search for issues that mention specific files.
+    
+    This function searches through open issues in a repository and finds those
+    that mention any of the provided file names in their title, body, or comments.
+    It searches for both full paths and basenames (file names only).
+    
+    Args:
+        owner: Repository owner
+        repo_name: Repository name
+        file_names: List of file names to search for (e.g., ["generator.go", "apply.go"])
+        
+    Returns:
+        List of matching issues with file mentions
+    """
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        raise ValueError(
+            f"GITHUB_TOKEN missing. Current env keys: {list(os.environ.keys())}"
+        )
+    
+    client = Github(token)
+    repo = client.get_repo(f"{owner}/{repo_name}")
+    
+    results = []
+    
+    # Get all open issues
+    issues = repo.get_issues(state="open")
+    
+    for issue in issues:
+        mentioned_files = []
+        
+        # Check title
+        title = issue.title or ""
+        
+        # Check body
+        body = issue.body or ""
+        
+        # Check comments
+        comments_text = ""
+        for comment in issue.get_comments():
+            comments_text += " " + (comment.body or "")
+        
+        # Combine all text to search
+        all_text = f"{title} {body} {comments_text}".lower()
+        
+        # Check which files are mentioned (search for both full path and basename)
+        for file_path in file_names:
+            # Search for the full path (without word boundaries for paths with slashes)
+            if "/" in file_path:
+                # For paths, search without word boundaries
+                if file_path.lower() in all_text:
+                    mentioned_files.append(file_path)
+                    continue
+            
+            # Search for the file name as a word (with word boundaries)
+            pattern = r'\b' + re.escape(file_path.lower()) + r'\b'
+            if re.search(pattern, all_text):
+                mentioned_files.append(file_path)
+                continue
+            
+            # Also search for basename (file name only) for better matching
+            basename = file_path.split("/")[-1]
+            if "/" in file_path:  # Only if it's a path, not just a filename
+                pattern = r'\b' + re.escape(basename.lower()) + r'\b'
+                if re.search(pattern, all_text):
+                    mentioned_files.append(file_path)
+        
+        if mentioned_files:
+            results.append({
+                "number": issue.number,
+                "title": issue.title,
+                "url": issue.html_url,
+                "mentioned_files": mentioned_files,
+            })
+    
+    print(f"DEBUG: search_issues_by_mentioned_files found {len(results)} issues for files: {file_names[:3]}...")
+    return results
+
+
+def call_gemini(prompt: str, model_name: str = "gemini-3.1-flash-lite") -> str:
     """Call Gemini API with a prompt.
     
     Args:
@@ -468,6 +547,9 @@ def call_gemini(prompt: str, model_name: str = "gemini-flash-lite-latest") -> st
             f"GOOGLE_API_KEY missing. Current env keys: {list(os.environ.keys())}"
         )
     
-    model = genai.GenerativeModel(model_name)
-    response = model.generate_content(prompt)
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=model_name,
+        contents=prompt
+    )
     return response.text

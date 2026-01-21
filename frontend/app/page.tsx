@@ -155,6 +155,46 @@ export default function Page() {
               </Card>
             )}
 
+             {result.mentioned_issues && (
+               <Card>
+                 <CardHeader>
+                   <CardTitle>Related Issues (Mentioned Files)</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                   {result.mentioned_issues.length > 0 ? (
+                     <div className="space-y-3">
+                       {result.mentioned_issues.map((issue) => (
+                         <div key={issue.number} className="space-y-1">
+                           <a
+                             href={issue.url}
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             className="font-mono text-xs font-medium text-blue-500 hover:underline"
+                           >
+                             #{issue.number}: {issue.title}
+                           </a>
+                           {issue.mentioned_files && issue.mentioned_files.length > 0 && (
+                             <div className="flex flex-wrap gap-1">
+                               {issue.mentioned_files.map((file) => (
+                                 <span
+                                   key={file}
+                                   className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono dark:bg-gray-800"
+                                 >
+                                   {file}
+                                 </span>
+                               ))}
+                             </div>
+                           )}
+                         </div>
+                       ))}
+                     </div>
+                   ) : (
+                     <p className="text-muted-foreground">No related issues found mentioning these files.</p>
+                   )}
+                 </CardContent>
+               </Card>
+             )}
+
             {hasContent(result.reasoning) && (
               <Card>
                 <CardHeader>

@@ -10,7 +10,7 @@ Given:
 
 Determine which parts of the repository are most likely involved.
 
-Return ONLY JSON.
+Return ONLY JSON. Do not include any other text, explanations, or markdown formatting.
 
 Output:
 
@@ -69,7 +69,7 @@ Which ones should be inspected first?
 
 Return at most 10 files.
 
-Return ONLY JSON.
+Return ONLY a valid JSON array. Do not include any other text, explanations, or markdown formatting.
 
 Output:
 
@@ -81,10 +81,6 @@ Output:
   {{
     "file": "pkg/webhooks/register.go",
     "reason": "This file handles webhook registration and may contain the logic causing the startup failure."
-  }},
-  {{
-    "file": "test/conformance/setup.go",
-    "reason": "This file may contain test setup that reveals the root cause of the issue."
   }}
 ]
 
@@ -107,4 +103,29 @@ Evaluate:
 3. Is the code quality good?
 
 Provide feedback and approval status.
+"""
+
+RELATED_ISSUES_PROMPT = """
+You are a senior software engineer.
+
+Given a GitHub issue and a list of candidate files, search for and identify related issues in the repository that might be relevant.
+
+Return ONLY a valid JSON array. Do not include any other text, explanations, or markdown formatting.
+
+Output:
+
+[
+  {{
+    "number": 123,
+    "title": "Issue title",
+    "url": "https://github.com/owner/repo/issues/123",
+    "mentioned_files": ["file1.go", "file2.go"]
+  }}
+]
+
+If no related issues are found, return an empty array: []
+
+Issue Title: {title}
+Issue Body: {body}
+Candidate Files: {files}
 """

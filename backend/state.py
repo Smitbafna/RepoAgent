@@ -18,3 +18,4 @@ class GraphState(TypedDict):
     candidate_files: list
     file_reasons: list  # List of {file: str, reason: str} objects
     investigation_plan: dict  # {directories: [], files: [], reasons: []}
+    mentioned_issues: list  # List of issues mentioning the candidate files
