@@ -104,28 +104,3 @@ Evaluate:
 
 Provide feedback and approval status.
 """
-
-RELATED_ISSUES_PROMPT = """
-You are a senior software engineer.
-
-Given a GitHub issue and a list of candidate files, search for and identify related issues in the repository that might be relevant.
-
-Return ONLY a valid JSON array. Do not include any other text, explanations, or markdown formatting.
-
-Output:
-
-[
-  {{
-    "number": 123,
-    "title": "Issue title",
-    "url": "https://github.com/owner/repo/issues/123",
-    "mentioned_files": ["file1.go", "file2.go"]
-  }}
-]
-
-If no related issues are found, return an empty array: []
-
-Issue Title: {title}
-Issue Body: {body}
-Candidate Files: {files}
-"""

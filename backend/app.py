@@ -1,13 +1,17 @@
 """FastAPI entrypoint for GitHub Issue Solver."""
 
 import os
-from fastapi import FastAPI, HTTPException
+import json
+import asyncio
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
 from state import GraphState
-from graph import app
+from graph import app, stream_analysis
+from tools import extract_repo_info_from_url
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -104,6 +108,85 @@ async def analyze(request: AnalyzeRequest):
         import traceback
         error_detail = f"{str(e)}\n{traceback.format_exc()}"
         raise HTTPException(status_code=500, detail=error_detail)
+
+
+async def event_generator(issue_url: str):
+    """Generate SSE events for streaming analysis."""
+    async for event in stream_analysis(issue_url):
+        yield f"data: {json.dumps(event)}\n\n"
+
+
+class RelatedIssuesRequest(BaseModel):
+    """Request model for fetching related issues."""
+    issue_url: str
+    candidate_files: list
+
+
+class RelatedIssuesResponse(BaseModel):
+    """Response model for related issues."""
+    success: bool
+    mentioned_issues: list
+    error: Optional[str] = None
+
+
+@fastapi_app.post("/related-issues", response_model=RelatedIssuesResponse)
+async def get_related_issues(request: RelatedIssuesRequest):
+    """Fetch related issues for candidate files.
+    
+    This endpoint is called on-demand from the frontend to find issues
+    that mention the candidate files.
+    
+    Args:
+        request: Request containing the issue URL and candidate files
+        
+    Returns:
+        Response with related issues
+    """
+    from tools import search_issues_by_mentioned_files
+    
+    try:
+        # Extract owner and repo from the issue URL
+        repo_info = extract_repo_info_from_url(request.issue_url)
+        if not repo_info:
+            raise HTTPException(status_code=400, detail="Invalid issue URL")
+        
+        owner, repo_name = repo_info
+        
+        # Search for issues mentioning the candidate files
+        mentioned_issues = search_issues_by_mentioned_files(
+            owner, repo_name, request.candidate_files
+        )
+        
+        return RelatedIssuesResponse(
+            success=True,
+            mentioned_issues=mentioned_issues
+        )
+        
+    except Exception as e:
+        import traceback
+        error_detail = f"{str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=error_detail)
+
+
+@fastapi_app.post("/analyze/stream")
+async def analyze_stream(request: AnalyzeRequest):
+    """Stream the analysis of a GitHub issue.
+    
+    Args:
+        request: Request containing the issue URL
+        
+    Returns:
+        Server-Sent Events stream with analysis progress
+    """
+    return StreamingResponse(
+        event_generator(request.issue_url),
+        media_type="text/plain",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Content-Type": "text/event-stream",
+        }
+    )
 
 
 if __name__ == "__main__":

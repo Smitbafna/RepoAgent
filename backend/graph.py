@@ -1,12 +1,12 @@
 """LangGraph workflow for GitHub Issue Solver."""
 
 import json
-import re
-from typing import Dict, Any
+import asyncio
+from typing import Dict, Any, AsyncGenerator
 from langgraph.graph import StateGraph, END
 from state import GraphState
-from tools import fetch_issue, extract_repo_info_from_url, build_repo_context, format_repo_context_for_prompt, call_gemini, search_issues_by_mentioned_files
-from prompts import PLANNER_PROMPT, REASONING_PROMPT, PATCH_PROMPT, RANK_FILES_PROMPT, RELATED_ISSUES_PROMPT
+from tools import fetch_issue, extract_repo_info_from_url, build_repo_context, format_repo_context_for_prompt, call_gemini, call_gemini_streaming
+from prompts import PLANNER_PROMPT, REASONING_PROMPT, PATCH_PROMPT, RANK_FILES_PROMPT
 
 
 def extract_json_from_response(response: str) -> Any:
@@ -107,10 +107,11 @@ def planner_node(state: GraphState) -> Dict[str, Any]:
     try:
         repo_context = state.get("repo_context", {})
         formatted_context = format_repo_context_for_prompt(repo_context)
+        issue = state.get("issue", {})
         prompt = PLANNER_PROMPT.format(
-            title=state["issue"]["title"],
-            body=state["issue"]["body"],
-            labels=state["issue"].get("labels", []),
+            title=issue.get("title", ""),
+            body=issue.get("body", ""),
+            labels=issue.get("labels", []),
             repo_context=formatted_context
         )
         response = call_gemini(prompt)
@@ -153,10 +154,11 @@ def find_files_node(state: GraphState) -> Dict[str, Any]:
 def rank_files_node(state: GraphState) -> Dict[str, Any]:
     """Node to rank files for inspection using Gemini."""
     files = state.get("files", [])
+    issue = state.get("issue", {})
     prompt = RANK_FILES_PROMPT.format(
-        title=state["issue"]["title"],
-        body=state["issue"]["body"],
-        labels=state["issue"].get("labels", []),
+        title=issue.get("title", ""),
+        body=issue.get("body", ""),
+        labels=issue.get("labels", []),
         files=files
     )
     response = call_gemini(prompt)
@@ -179,102 +181,6 @@ def rank_files_node(state: GraphState) -> Dict[str, Any]:
     }
 
 
-def search_mentioned_files_node(state: GraphState) -> Dict[str, Any]:
-    """Node to search for issues mentioning the candidate files."""
-    candidate_files = state.get("candidate_files", [])
-    owner = state.get("owner", "")
-    repo_name = state.get("repo_name", "")
-    
-    if not candidate_files or not owner or not repo_name:
-        return {"mentioned_issues": []}
-    
-    try:
-        mentioned_issues = search_issues_by_mentioned_files(owner, repo_name, candidate_files)
-        print(f"DEBUG: search_mentioned_files_node found {len(mentioned_issues)} issues for {len(candidate_files)} files")
-        return {"mentioned_issues": mentioned_issues}
-    except Exception as e:
-        print(f"DEBUG: search_mentioned_files_node error: {e}")
-        return {"mentioned_issues": []}
-
-
-def find_related_issues_node(state: GraphState) -> Dict[str, Any]:
-    """Node to find related issues using AI based on issue content."""
-    import os
-    from github import Github
-    
-    owner = state.get("owner", "")
-    repo_name = state.get("repo_name", "")
-    
-    if not owner or not repo_name:
-        return {"mentioned_issues": state.get("mentioned_issues", [])}
-    
-    try:
-        token = os.getenv("GITHUB_TOKEN")
-        if not token:
-            return {"mentioned_issues": state.get("mentioned_issues", [])}
-        
-        client = Github(token)
-        repo = client.get_repo(f"{owner}/{repo_name}")
-        
-        # Get all open issues
-        issues = list(repo.get_issues(state="open"))
-        
-        # Get existing mentioned issues to avoid duplicates
-        existing_numbers = set()
-        for issue in state.get("mentioned_issues", []):
-            if isinstance(issue, dict) and "number" in issue:
-                existing_numbers.add(issue["number"])
-        
-        # Find issues with similar titles or content
-        current_title = state["issue"].get("title", "").lower()
-        current_body = state["issue"].get("body", "").lower()
-        
-        related_issues = []
-        for issue in issues:
-            if issue.number in existing_numbers:
-                continue
-            if issue.number == state["issue"].get("number"):
-                continue
-            
-            issue_title = (issue.title or "").lower()
-            issue_body = (issue.body or "").lower()
-            
-            # Check for keyword overlap
-            title_words = set(current_title.split())
-            body_words = set(current_body.split())
-            
-            # Simple similarity check - if title or body shares significant words
-            if len(issue_title) > 0 and len(current_title) > 0:
-                common_title = len(title_words & set(issue_title.split()))
-                if common_title >= 2:  # At least 2 common words
-                    related_issues.append({
-                        "number": issue.number,
-                        "title": issue.title,
-                        "url": issue.html_url,
-                        "mentioned_files": []
-                    })
-                    continue
-            
-            # Check body for keyword matches
-            if len(issue_body) > 0 and len(current_body) > 0:
-                common_body = len(body_words & set(issue_body.split()))
-                if common_body >= 3:  # At least 3 common words
-                    related_issues.append({
-                        "number": issue.number,
-                        "title": issue.title,
-                        "url": issue.html_url,
-                        "mentioned_files": []
-                    })
-        
-        # Combine with existing mentioned issues
-        all_mentioned = state.get("mentioned_issues", []) + related_issues[:5]
-        print(f"DEBUG: find_related_issues_node found {len(related_issues)} additional related issues")
-        return {"mentioned_issues": all_mentioned}
-    except Exception as e:
-        print(f"DEBUG: find_related_issues_node error: {e}")
-        return {"mentioned_issues": state.get("mentioned_issues", [])}
-
-
 def save_investigation_plan_node(state: GraphState) -> Dict[str, Any]:
     """Node to save the investigation plan with directories, files, and reasons."""
     candidate_directories = state.get("candidate_directories", [])
@@ -294,9 +200,10 @@ def reason_node(state: GraphState) -> Dict[str, Any]:
     """Node to reason through the solution."""
     repo_context = state.get("repo_context", {})
     formatted_context = format_repo_context_for_prompt(repo_context)
+    issue = state.get("issue", {})
     prompt = REASONING_PROMPT.format(
-        title=state["issue"]["title"],
-        body=state["issue"]["body"],
+        title=issue.get("title", ""),
+        body=issue.get("body", ""),
         repo_info=f"{state.get('owner', '')}/{state.get('repo_name', '')}",
         files=state.get("files", []),
         repo_context=formatted_context
@@ -307,10 +214,11 @@ def reason_node(state: GraphState) -> Dict[str, Any]:
 
 def generate_fix_node(state: GraphState) -> Dict[str, Any]:
     """Node to generate the fix patch."""
+    issue = state.get("issue", {})
     prompt = PATCH_PROMPT.format(
-        title=state["issue"]["title"],
-        body=state["issue"]["body"],
-        reasoning=state["reasoning"],
+        title=issue.get("title", ""),
+        body=issue.get("body", ""),
+        reasoning=state.get("reasoning", ""),
         files=state.get("files", [])
     )
     patch = call_gemini(prompt)
@@ -327,8 +235,6 @@ def create_graph() -> StateGraph:
     workflow.add_node("planner", planner_node)
     workflow.add_node("find_files", find_files_node)
     workflow.add_node("rank_files", rank_files_node)
-    workflow.add_node("search_mentioned_files", search_mentioned_files_node)
-    workflow.add_node("find_related_issues", find_related_issues_node)
     workflow.add_node("save_investigation_plan", save_investigation_plan_node)
     workflow.add_node("reason", reason_node)
     workflow.add_node("generate_fix", generate_fix_node)
@@ -338,9 +244,7 @@ def create_graph() -> StateGraph:
     workflow.add_edge("fetch_repo_context", "planner")
     workflow.add_edge("planner", "find_files")
     workflow.add_edge("find_files", "rank_files")
-    workflow.add_edge("rank_files", "search_mentioned_files")
-    workflow.add_edge("search_mentioned_files", "find_related_issues")
-    workflow.add_edge("find_related_issues", "save_investigation_plan")
+    workflow.add_edge("rank_files", "save_investigation_plan")
     workflow.add_edge("save_investigation_plan", "reason")
     workflow.add_edge("reason", "generate_fix")
     workflow.add_edge("generate_fix", END)
@@ -354,3 +258,120 @@ def create_graph() -> StateGraph:
 # Create the graph instance
 graph = create_graph()
 app = graph.compile()
+
+
+# Streaming version
+async def stream_analysis(issue_url: str) -> AsyncGenerator[Dict[str, Any], None]:
+    """Stream the analysis process with events.
+    
+    Uses concurrent streaming - each step starts as soon as the previous one completes,
+    and results are streamed token-by-token.
+    
+    Args:
+        issue_url: URL of the GitHub issue
+        
+    Yields:
+        Events with type and data
+    """
+    # Initialize state
+    state = {
+        "issue_url": issue_url,
+        "issue": {},
+        "files": [],
+        "code": {},
+        "reasoning": "",
+        "patch": "",
+        "owner": "",
+        "repo_name": "",
+        "repo_context": {},
+        "candidate_directories": [],
+        "candidate_files": [],
+        "file_reasons": [],
+        "investigation_plan": {},
+        "mentioned_issues": []
+    }
+    
+    try:
+        # Step 1: Fetch issue
+        yield {"type": "status", "data": "Fetching issue details..."}
+        state.update(fetch_issue_node(state))
+        # Stream the fetched issue details
+        issue = state.get("issue", {})
+        if issue:
+            yield {"type": "issue", "data": issue}
+        
+        # Step 2: Fetch repo context
+        yield {"type": "status", "data": "Fetching repository context..."}
+        state.update(fetch_repo_context_node(state))
+        
+        # Step 3: Planner
+        yield {"type": "status", "data": "Planning solution..."}
+        state.update(planner_node(state))
+        
+        # Step 4: Find files
+        yield {"type": "status", "data": "Finding relevant files..."}
+        state.update(find_files_node(state))
+        
+        # Step 5: Rank files
+        yield {"type": "status", "data": "Ranking files by relevance..."}
+        state.update(rank_files_node(state))
+        
+        # Step 6: Save investigation plan
+        state.update(save_investigation_plan_node(state))
+        
+        # Step 7: Reason (stream this)
+        yield {"type": "status", "data": "Generating reasoning..."}
+        repo_context = state.get("repo_context", {})
+        formatted_context = format_repo_context_for_prompt(repo_context)
+        issue = state.get("issue", {})
+        prompt = REASONING_PROMPT.format(
+            title=issue.get("title", ""),
+            body=issue.get("body", ""),
+            repo_info=f"{state.get('owner', '')}/{state.get('repo_name', '')}",
+            files=state.get("files", []),
+            repo_context=formatted_context
+        )
+        
+        # Stream reasoning
+        reasoning_text = ""
+        async for chunk in call_gemini_streaming(prompt):
+            reasoning_text += chunk
+            yield {"type": "reasoning", "data": chunk}
+        state["reasoning"] = reasoning_text
+        
+        # Step 8: Generate fix (stream this)
+        yield {"type": "status", "data": "Generating patch..."}
+        patch_prompt = PATCH_PROMPT.format(
+            title=issue.get("title", ""),
+            body=issue.get("body", ""),
+            reasoning=state.get("reasoning", ""),
+            files=state.get("files", [])
+        )
+        
+        # Stream patch
+        patch_text = ""
+        async for chunk in call_gemini_streaming(patch_prompt):
+            patch_text += chunk
+            yield {"type": "patch", "data": chunk}
+        state["patch"] = patch_text
+        
+        # Final result
+        yield {"type": "complete", "data": {
+            "success": True,
+            "issue": state.get("issue"),
+            "files": state.get("files"),
+            "code": state.get("code"),
+            "reasoning": state.get("reasoning"),
+            "patch": state.get("patch"),
+            "repo_context": state.get("repo_context"),
+            "candidate_directories": state.get("candidate_directories"),
+            "candidate_files": state.get("candidate_files"),
+            "file_reasons": state.get("file_reasons"),
+            "investigation_plan": state.get("investigation_plan"),
+            "mentioned_issues": [],
+        }}
+        
+    except Exception as e:
+        import traceback
+        error_detail = f"{str(e)}\n{traceback.format_exc()}"
+        yield {"type": "error", "data": error_detail}

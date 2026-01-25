@@ -2,6 +2,7 @@
 
 import os
 import re
+import asyncio
 from typing import Dict, List, Optional
 from dotenv import load_dotenv
 from github import Github, GithubException
@@ -477,8 +478,8 @@ def search_issues_by_mentioned_files(owner: str, repo_name: str, file_names: Lis
     
     results = []
     
-    # Get all open issues
-    issues = repo.get_issues(state="open")
+    # Get all open issues (limit to 100 for performance)
+    issues = list(repo.get_issues(state="open"))[:100]
     
     for issue in issues:
         mentioned_files = []
@@ -489,10 +490,13 @@ def search_issues_by_mentioned_files(owner: str, repo_name: str, file_names: Lis
         # Check body
         body = issue.body or ""
         
-        # Check comments
+        # Check comments (limit to first 10 comments for performance)
         comments_text = ""
-        for comment in issue.get_comments():
-            comments_text += " " + (comment.body or "")
+        try:
+            for comment in list(issue.get_comments())[:10]:
+                comments_text += " " + (comment.body or "")
+        except Exception:
+            pass  # Skip comments if there's an error
         
         # Combine all text to search
         all_text = f"{title} {body} {comments_text}".lower()
@@ -529,6 +533,34 @@ def search_issues_by_mentioned_files(owner: str, repo_name: str, file_names: Lis
     
     print(f"DEBUG: search_issues_by_mentioned_files found {len(results)} issues for files: {file_names[:3]}...")
     return results
+
+
+async def call_gemini_streaming(prompt: str, model_name: str = "gemini-3.1-flash-lite"):
+    """Call Gemini API with a prompt and stream the response.
+    
+    Args:
+        prompt: The prompt to send to the model
+        model_name: Name of the model to use
+        
+    Yields:
+        Chunks of text as they're generated
+    """
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise ValueError(
+            f"GOOGLE_API_KEY missing. Current env keys: {list(os.environ.keys())}"
+        )
+    
+    client = genai.Client(api_key=api_key)
+    
+    # Use streaming mode - generate_content_stream returns an iterator
+    for chunk in client.models.generate_content_stream(
+        model=model_name,
+        contents=prompt
+    ):
+        if hasattr(chunk, 'text') and chunk.text:
+            yield chunk.text
+        await asyncio.sleep(0)  # Allow other tasks to run
 
 
 def call_gemini(prompt: str, model_name: str = "gemini-3.1-flash-lite") -> str:
