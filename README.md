@@ -1,21 +1,25 @@
 # RepoAgent
 
-AI-powered GitHub issue solver that automatically analyzes issues, identifies relevant files, and generates code fixes using LangGraph and Gemini.
+AI-powered GitHub issue solver that takes a GitHub issue URL and automatically analyzes the problem, identifies relevant files in the repository, and generates code fixes. The application uses a LangGraph workflow with Gemini AI to fetch issue details, explore repository context, plan solutions, and stream real-time reasoning and patch generation to a Next.js frontend.
 
 ## Features
 
-- **Issue Analysis**: Enter any GitHub issue URL to get AI-powered analysis
-- **Smart File Discovery**: Automatically identifies relevant source files in the repository
-- **Code Generation**: Generates patches and fixes based on issue requirements
-- **Streaming Responses**: Real-time streaming of AI reasoning and patch generation
-- **Related Issues**: Find other issues that mention the same files
+- **Issue Analysis**: Fetches and parses GitHub issue details including title, body, labels, and comments
+- **Repository Context**: Explores repository structure, language, and file tree using GitHub API
+- **Smart File Discovery**: Uses AI to identify relevant source directories and rank candidate files
+- **AI Reasoning**: Generates step-by-step analysis of the issue and solution approach
+- **Code Generation**: Creates patches and code fixes based on issue requirements
+- **Streaming Responses**: Real-time Server-Sent Events (SSE) streaming of AI reasoning and patch generation
+- **Related Issues**: Finds other open issues that mention the same candidate files
+- **Typewriter Effect**: Frontend displays streaming text with smooth typewriter animation
 
 ## Architecture
 
-- **Frontend**: Next.js with shadcn/ui components
-- **Backend**: FastAPI with LangGraph workflow
-- **AI**: Google Gemini for code analysis and generation
-- **GitHub API**: PyGithub for repository and issue data
+- **Frontend**: Next.js with shadcn/ui components, TypeScript, and React Markdown
+- **Backend**: FastAPI with LangGraph StateGraph workflow for orchestration
+- **AI**: Google Gemini (gemini-3.1-flash-lite) for code analysis and generation
+- **GitHub API**: PyGithub for repository and issue data fetching
+- **Workflow**: 8-node LangGraph pipeline (fetch_issue → fetch_repo_context → planner → find_files → rank_files → save_investigation_plan → reason → generate_fix)
 
 ## Setup
 
